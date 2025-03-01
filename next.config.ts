@@ -9,7 +9,8 @@ const nextConfig: NextConfig = {
       "i.scdn.co",   // Spotify images
       "yt3.ggpht.com",
       "image-cdn-ak.spotifycdn.com",
-      "via.placeholder.com" 
+      "via.placeholder.com",
+      "image-cdn-fa.spotifycdn.com"
     ],
   },
 };

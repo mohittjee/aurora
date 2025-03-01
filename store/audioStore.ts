@@ -16,12 +16,21 @@ interface AudioState {
   moveTrack: (fromIndex: number, toIndex: number) => void;
   searchResults: MusicSnippet[];
   setSearchResults: (results: MusicSnippet[]) => void;
+  appendSearchResults: (results: MusicSnippet[]) => void;
   loading: boolean;
   setLoading: (loading: boolean) => void;
   playlistMetadata: PlaylistMetadata | null;
   setPlaylistMetadata: (metadata: PlaylistMetadata | null) => void;
-  spotifyAccessToken: string | null;
-  setSpotifyAccessToken: (token: string | null) => void;
+  error: string | null;
+  setError: (error: string | null) => void;
+  hasMore: boolean;
+  setHasMore: (hasMore: boolean) => void;
+  offset: number;
+  setOffset: (offset: number) => void;
+  totalTracks: number;
+  setTotalTracks: (total: number) => void;
+  youtubeCache: Record<string, string>;
+  setYoutubeCache: (key: string, videoId: string) => void;
   reset: () => void;
 }
 
@@ -45,22 +54,35 @@ export const useAudioStore = create<AudioState>()(
         }),
       searchResults: [],
       setSearchResults: (searchResults) => set({ searchResults }),
+      appendSearchResults: (results) => set((state) => ({ searchResults: [...state.searchResults, ...results] })),
       loading: false,
       setLoading: (loading) => set({ loading }),
       playlistMetadata: null,
       setPlaylistMetadata: (playlistMetadata) => set({ playlistMetadata }),
-      spotifyAccessToken: null,
-      setSpotifyAccessToken: (spotifyAccessToken) => set({ spotifyAccessToken }),
-      reset: () =>
-        set((state) => ({
-          queue: [],
-          currentTrack: null,
-          playing: false,
-          searchResults: [],
-          playlistMetadata: null,
-          // Preserve spotifyAccessToken
-          spotifyAccessToken: state.spotifyAccessToken,
-        })),
+      error: null,
+      setError: (error) => set({ error }),
+      hasMore: true,
+      setHasMore: (hasMore) => set({ hasMore }),
+      offset: 0,
+      setOffset: (offset) => set({ offset }),
+      totalTracks: 0,
+      setTotalTracks: (total) => set({ totalTracks: total }),
+      youtubeCache: {},
+      setYoutubeCache: (key, videoId) => set((state) => ({
+        youtubeCache: { ...state.youtubeCache, [key]: videoId },
+      })),
+      reset: () => set({
+        queue: [],
+        currentTrack: null,
+        playing: false,
+        searchResults: [],
+        playlistMetadata: null,
+        error: null,
+        hasMore: true,
+        offset: 0,
+        totalTracks: 0,
+        youtubeCache: {},
+      }),
     }),
     {
       name: "audio-storage",
@@ -68,7 +90,7 @@ export const useAudioStore = create<AudioState>()(
         queue: state.queue,
         currentTrack: state.currentTrack,
         playMode: state.playMode,
-        spotifyAccessToken: state.spotifyAccessToken, // Persist token
+        youtubeCache: state.youtubeCache,
       }),
     }
   )

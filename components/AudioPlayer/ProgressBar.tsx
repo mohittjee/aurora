@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState, useRef } from "react";
 import ReactPlayer from "react-player";
-import { Slider } from "@/components/ui/slider";
+import { Slider } from "@/components/ui/slider"; // Assuming shadcn/ui or similar
 import { useAudioStore } from "@/store/audioStore";
 import { Loader2 } from "lucide-react";
 
@@ -19,10 +19,7 @@ export default function ProgressBar({ url, onProgress, onDuration }: ProgressBar
   const playerRef = useRef<ReactPlayer>(null);
 
   const currentIndex = currentTrack
-    ? queue.findIndex(
-        (item) =>
-          (item.videoId || item.trackId) === (currentTrack.videoId || currentTrack.trackId)
-      )
+    ? queue.findIndex((item) => item.snippet.videoId === currentTrack.snippet.videoId)
     : -1;
 
   const handleProgress = (state: { played: number; playedSeconds: number }) => {
@@ -63,7 +60,7 @@ export default function ProgressBar({ url, onProgress, onDuration }: ProgressBar
   };
 
   return (
-    <div className="w-64 flex items-center gap-2">
+    <div className="w-full flex items-center gap-2">
       {isBuffering && <Loader2 className="h-4 w-4 animate-spin" />}
       <Slider
         value={[progress]}
@@ -71,6 +68,7 @@ export default function ProgressBar({ url, onProgress, onDuration }: ProgressBar
         step={0.1}
         onValueChange={handleSeek}
         disabled={isBuffering || !currentTrack}
+        className="flex-1"
       />
       <div className="sr-only">
         <ReactPlayer

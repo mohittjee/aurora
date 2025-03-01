@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useAudioStore } from "@/store/audioStore";
-import { Button } from "@/components/ui/button";
-import { List, GripVertical } from "lucide-react";
+import { Button } from "@/components/ui/button"; // Assuming shadcn/ui
+import { List } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card"; // Assuming shadcn/ui
+import Image from "next/image";
 
 export default function SongQueue() {
   const { queue, moveTrack, setCurrentTrack } = useAudioStore();
@@ -17,56 +18,45 @@ export default function SongQueue() {
   };
 
   return (
-    <div className="fixed bottom-20 right-4">
+    <div className="fixed bottom-20 right-4 z-50">
       <Button variant="ghost" size="icon" onClick={() => setIsOpen(!isOpen)}>
         <List className="h-6 w-6" />
       </Button>
       {isOpen && (
         <div className="absolute bottom-12 right-0 w-72 bg-gray-100 border rounded shadow-lg max-h-60 overflow-y-auto">
           <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="queue" direction="vertical">
+            <Droppable droppableId="queue">
               {(provided) => (
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className="p-2"
-                >
+                <div {...provided.droppableProps} ref={provided.innerRef} className="p-2">
                   {queue.length === 0 ? (
                     <p className="text-center text-gray-500 text-sm">Queue is empty</p>
                   ) : (
                     queue.map((item, index) => {
-                      const uniqueId = item.id?.videoId || item.snippet.resourceId?.videoId || `track-${index}`;
+                      const id = item.snippet.videoId || `${item.snippet.title}-${item.snippet.artist}`;
                       return (
-                        <Draggable
-                          key={uniqueId}
-                          draggableId={uniqueId}
-                          index={index}
-                        >
-                          {(provided, snapshot) => (
+                        <Draggable key={id} draggableId={id} index={index}>
+                          {(provided) => (
                             <Card
                               ref={provided.innerRef}
                               {...provided.draggableProps}
-                              className={`mb-2 cursor-pointer flex items-center ${snapshot.isDragging ? "bg-gray-200" : ""}`}
+                              {...provided.dragHandleProps}
+                              className="mb-2 cursor-pointer hover:bg-gray-200 transition-colors"
                               onClick={() => {
                                 setCurrentTrack(item);
                                 setIsOpen(false);
                               }}
                             >
-                              <div
-                                {...provided.dragHandleProps}
-                                className="p-2"
-                              >
-                                <GripVertical className="h-4 w-4 text-gray-500" />
-                              </div>
-                              <CardContent className="p-2 flex items-center gap-2 flex-1">
-                                <img
+                              <CardContent className="p-2 flex items-center gap-2">
+                                <Image
                                   src={item.snippet.thumbnails.default.url}
-                                  alt="Thumbnail"
-                                  className="w-10 h-10 rounded"
+                                  alt={item.snippet.title}
+                                  width={40}
+                                  height={40}
+                                  className="rounded"
                                 />
                                 <div>
                                   <p className="text-sm">{item.snippet.title}</p>
-                                  <p className="text-xs text-gray-600">{item.snippet.channelTitle}</p>
+                                  <p className="text-xs text-gray-600">{item.snippet.artist}</p>
                                 </div>
                               </CardContent>
                             </Card>

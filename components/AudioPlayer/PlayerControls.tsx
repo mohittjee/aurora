@@ -1,18 +1,14 @@
 "use client";
 
 import { useAudioStore } from "@/store/audioStore";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button"; // Assuming you have a UI library like shadcn/ui
 import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat } from "lucide-react";
 
 export default function PlayerControls() {
   const { queue, currentTrack, playing, setPlaying, playMode, setPlayMode, setCurrentTrack } = useAudioStore();
 
   const currentIndex = currentTrack
-    ? queue.findIndex(
-        (item) =>
-          (item.id?.videoId || item.snippet.resourceId?.videoId) ===
-          (currentTrack.id?.videoId || currentTrack.snippet.resourceId?.videoId)
-      )
+    ? queue.findIndex((item) => item.snippet.videoId === currentTrack.snippet.videoId)
     : -1;
 
   const handleNext = () => {
@@ -25,7 +21,7 @@ export default function PlayerControls() {
     } else if (playMode === "loop") {
       nextIndex = 0;
     } else {
-      return; // No next track
+      return;
     }
     setCurrentTrack(queue[nextIndex]);
     setPlaying(true);
@@ -39,7 +35,7 @@ export default function PlayerControls() {
     } else if (playMode === "loop") {
       prevIndex = queue.length - 1;
     } else {
-      return; // No previous track
+      return;
     }
     setCurrentTrack(queue[prevIndex]);
     setPlaying(true);
@@ -64,12 +60,7 @@ export default function PlayerControls() {
       >
         <SkipBack className="h-4 w-4" />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setPlaying(!playing)}
-        disabled={!currentTrack}
-      >
+      <Button variant="ghost" size="icon" onClick={() => setPlaying(!playing)} disabled={!currentTrack}>
         {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </Button>
       <Button
@@ -80,12 +71,7 @@ export default function PlayerControls() {
       >
         <SkipForward className="h-4 w-4" />
       </Button>
-      <Button
-        variant={playMode === "normal" ? "ghost" : "outline"}
-        size="icon"
-        onClick={togglePlayMode}
-        title={playMode}
-      >
+      <Button variant={playMode === "normal" ? "ghost" : "outline"} size="icon" onClick={togglePlayMode} title={playMode}>
         {playMode === "normal" ? <Shuffle className="h-4 w-4 opacity-50" /> : modeIcon}
       </Button>
     </div>
