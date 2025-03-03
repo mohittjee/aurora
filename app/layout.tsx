@@ -1,22 +1,15 @@
 "use client";
 
-import { SessionProvider } from "next-auth/react";
-import "./globals.css";
 import { ReactNode } from "react";
-// import { AudioProvider } from "@/context/AudioContext";
-
-// export const metadata = {
-//   title: "YouTube Audio Player",
-//   description: "Play YouTube audio-only",
-// };
+import { ClerkProvider } from "@clerk/nextjs";
+import "./globals.css";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body>
-        {/* <AudioProvider>{children}</AudioProvider> */}
-        <SessionProvider>{children}</SessionProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en">
+        <body className="bg-gray-50 text-gray-900">{children}</body>
+      </html>
+    </ClerkProvider>
   );
 }

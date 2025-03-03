@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server"; // Clerk auth helper
 import { fetchJioSaavnTracks } from "@/lib/jiosaavn";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next"; // Updated import
-import { authOptions } from "@/lib/auth"; // Ensure this path is correct
-import ytdl from "ytdl-core";
 import axios from "axios";
 
 export async function GET(req: NextRequest) {
@@ -16,18 +14,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing trackId or source" }, { status: 400 });
   }
 
-  const session = await getServerSession(authOptions); // Use NextAuth's getServerSession
-  const userId = session?.user?.id;
+  const { userId } = await auth(); // Await auth to get userId
+  // No need to check userId here unless you want to restrict downloads to authenticated users
 
   try {
     let url = "";
     if (source === "jiosaavn") {
       const jioSaavnResult = await fetchJioSaavnTracks(trackId, 1);
-      url = jioSaavnResult[0]?.snippet.videoId || ""; // Assuming videoId holds the MP3 URL
+      url = jioSaavnResult[0]?.videoId || "";
     }
 
     if (!url && source === "youtube_music") {
-      const proxyResponse = await axios.get(`https://your-proxy-server-url/youtube?query=${encodeURIComponent(trackId)}&limit=1`);
+      const proxyResponse = await axios.get(`https://music-player-proxy.onrender.com/youtube?query=${encodeURIComponent(trackId)}&limit=1`);
       url = proxyResponse.data.videoId ? `https://www.youtube.com/watch?v=${proxyResponse.data.videoId}` : "";
     }
 

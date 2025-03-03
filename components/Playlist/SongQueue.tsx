@@ -32,7 +32,7 @@ export default function SongQueue() {
                     <p className="text-center text-gray-500 text-sm">Queue is empty</p>
                   ) : (
                     queue.map((item, index) => {
-                      const id = item.snippet.videoId || `${item.snippet.title}-${item.snippet.artist}`;
+                      const id = item.videoId || `${item.title}-${item.artist}`;
                       return (
                         <Draggable key={id} draggableId={id} index={index}>
                           {(provided) => (
@@ -48,15 +48,15 @@ export default function SongQueue() {
                             >
                               <CardContent className="p-2 flex items-center gap-2">
                                 <Image
-                                  src={item.snippet.thumbnails.default.url}
-                                  alt={item.snippet.title}
+                                  src={item.thumbnails.default.url}
+                                  alt={item.title}
                                   width={40}
                                   height={40}
                                   className="rounded"
                                 />
                                 <div>
-                                  <p className="text-sm">{item.snippet.title}</p>
-                                  <p className="text-xs text-gray-600">{item.snippet.artist}</p>
+                                  <p className="text-sm">{item.title}</p>
+                                  <p className="text-xs text-gray-600">{item.artist}</p>
                                 </div>
                               </CardContent>
                             </Card>

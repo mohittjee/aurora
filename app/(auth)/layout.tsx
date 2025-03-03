@@ -1,15 +1,7 @@
 import { ReactNode } from "react";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import AuthButton from "@/components/AuthButton";
 
-export default async function AuthLayout({ children }: { children: ReactNode }) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    redirect("/");
-  }
-
+export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="flex justify-between items-center p-4 bg-white shadow">

@@ -8,7 +8,7 @@ export default function PlayerControls() {
   const { queue, currentTrack, playing, setPlaying, playMode, setPlayMode, setCurrentTrack } = useAudioStore();
 
   const currentIndex = currentTrack
-    ? queue.findIndex((item) => item.snippet.videoId === currentTrack.snippet.videoId)
+    ? queue.findIndex((item) => item.videoId === currentTrack.videoId)
     : -1;
 
   const handleNext = () => {

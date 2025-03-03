@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useUser } from "@clerk/nextjs";
 import { useAudioStore } from "@/store/audioStore";
 import UploadForm from "@/components/UploadForm";
 import axios from "axios";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
-  const { data: session } = useSession();
+  const router = useRouter();
+  const { user, isSignedIn } = useUser();
   const { setSearchResults } = useAudioStore();
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [likedSongs, setLikedSongs] = useState<any[]>([]);
@@ -16,11 +18,13 @@ export default function Dashboard() {
   const [recommendations, setRecommendations] = useState<any[]>([]);
 
   useEffect(() => {
-    if (session?.user?.id) {
+    if (!isSignedIn) {
+      router.push("/"); // Redirect if not signed in
+    } else {
       fetchUserData();
       fetchRecommendations();
     }
-  }, [session]);
+  }, [isSignedIn, router]);
 
   const fetchUserData = async () => {
     try {
@@ -47,9 +51,11 @@ export default function Dashboard() {
     }
   };
 
+  if (!isSignedIn) return null;
+
   return (
     <div className="p-4 max-w-5xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Welcome, {session?.user?.name || "User"}!</h1>
+      <h1 className="text-3xl font-bold mb-6">Welcome, {user?.fullName || "User"}!</h1>
       <UploadForm onUpload={fetchUserData} />
       <section className="mb-8">
         <h2 className="text-2xl font-semibold mb-4">Your Playlists</h2>
@@ -107,10 +113,10 @@ export default function Dashboard() {
           {recommendations.length > 0 ? (
             recommendations.map((song, index) => (
               <div key={index} className="p-2 bg-white rounded shadow flex items-center gap-2 hover:bg-gray-50 transition-colors">
-                <Image src={song.snippet.thumbnails.default.url} alt={song.snippet.title} width={48} height={48} className="rounded" />
+                <Image src={song.thumbnails.default.url} alt={song.title} width={48} height={48} className="rounded" />
                 <div>
-                  <p className="text-sm font-medium">{song.snippet.title}</p>
-                  <p className="text-xs text-gray-600">{song.snippet.artist}</p>
+                  <p className="text-sm font-medium">{song.title}</p>
+                  <p className="text-xs text-gray-600">{song.artist}</p>
                 </div>
               </div>
             ))

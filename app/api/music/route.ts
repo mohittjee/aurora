@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
-import { fetchJioSaavnTracks, fetchJioSaavnPlaylist } from "@/lib/jiosaavn";
+import { fetchJioSaavnTracks } from "@/lib/jiosaavn";
 import { fetchYouTubeSearch, fetchYouTubePlaylist } from "@/lib/youtube";
 
 export async function GET(req: NextRequest) {
@@ -56,16 +56,16 @@ export async function GET(req: NextRequest) {
         const itemsPromises = playlistData.items.map(async (item: any) => {
           const track = item.track;
           const jioSaavnResult = await fetchJioSaavnTracks(`${track.name} ${track.artists[0].name}`, 1);
-          let videoId = jioSaavnResult[0]?.snippet.videoId || "";
+          let videoId = jioSaavnResult[0]?.videoId || "";
 
           if (!videoId) {
-            const proxyResult = await axios.get(`https://your-proxy-server-url/youtube?query=${encodeURIComponent(`${track.name} ${track.artists[0].name}`)}&limit=1`); // Hosted proxy URL
+            const proxyResult = await axios.get(`https://music-player-proxy.onrender.com/youtube?query=${encodeURIComponent(`${track.name} ${track.artists[0].name}`)}&limit=1`);
             videoId = proxyResult.data.videoId || "";
           }
 
           if (!videoId) {
             const youtubeResult = await fetchYouTubeSearch(`${track.name} ${track.artists[0].name}`, 1);
-            videoId = youtubeResult[0]?.snippet.videoId || "";
+            videoId = youtubeResult[0]?.videoId || "";
           }
 
           return {
@@ -113,16 +113,16 @@ export async function GET(req: NextRequest) {
       const trackData = trackResponse.data;
 
       const jioSaavnResult = await fetchJioSaavnTracks(`${trackData.name} ${trackData.artists[0].name}`, 1);
-      let videoId = jioSaavnResult[0]?.snippet.videoId || "";
+      let videoId = jioSaavnResult[0]?.videoId || "";
 
       if (!videoId) {
-        const proxyResult = await axios.get(`https://your-proxy-server-url/youtube?query=${encodeURIComponent(`${trackData.name} ${trackData.artists[0].name}`)}&limit=1`);
+        const proxyResult = await axios.get(`https://music-player-proxy.onrender.com/youtube?query=${encodeURIComponent(`${trackData.name} ${trackData.artists[0].name}`)}&limit=1`);
         videoId = proxyResult.data.videoId || "";
       }
 
       if (!videoId) {
         const youtubeResult = await fetchYouTubeSearch(`${trackData.name} ${trackData.artists[0].name}`, 1);
-        videoId = youtubeResult[0]?.snippet.videoId || "";
+        videoId = youtubeResult[0]?.videoId || "";
       }
 
       const items = [{
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
     const remainingSlots = 5 - jioSaavnItems.length;
     let youtubeItems: any[] = [];
     if (remainingSlots > 0) {
-      const proxyResult = await axios.get(`https://your-proxy-server-url/youtube?query=${encodeURIComponent(query)}&limit=${remainingSlots}`);
+      const proxyResult = await axios.get(`https://music-player-proxy.onrender.com/youtube?query=${encodeURIComponent(query)}&limit=${remainingSlots}`);
       youtubeItems = proxyResult.data.items.length >= remainingSlots ? proxyResult.data.items.slice(0, remainingSlots) : proxyResult.data.items;
 
       if (youtubeItems.length < remainingSlots) {
@@ -152,7 +152,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const items = [...jioSaavnItems, ...youtubeItems];
+    const items = [...jioSaavnItems, ...youtubeItems.map(item => ({ snippet: item.snippet }))]; // Wrap items in snippet for consistency
     return NextResponse.json({ items, playlist: null, total: items.length });
   } catch (error: any) {
     console.error("API Error:", error);

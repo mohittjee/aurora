@@ -2,7 +2,7 @@ export interface MusicSnippet {
   title: string;
   artist: string;
   thumbnails: { default: { url: string } };
-  videoId?: string; // Unified for YouTube/JioSaavn URLs
+  videoId?: string;
   trackId?: string;
   source: "youtube" | "youtube_music" | "jiosaavn";
 }

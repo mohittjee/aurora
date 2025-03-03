@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next"; // Updated import
-import { authOptions } from "@/lib/auth"; // Ensure this path is correct
+import { auth } from "@clerk/nextjs/server"; // Clerk auth helper
 import { uploadToS3 } from "@/lib/s3";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions); // Use NextAuth's getServerSession
-  if (!session?.user?.id) {
+  const { userId } = await auth(); // Get user ID from Clerk
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -18,12 +17,12 @@ export async function POST(req: NextRequest) {
     for (const file of files) {
       const fileName = file.name;
       const [title, artist] = fileName.split("-").map((part) => part.trim().replace(/\.[^/.]+$/, "")) || [fileName, "Unknown Artist"];
-      const s3FileName = `${session.user.id}-${Date.now()}-${fileName}`;
+      const s3FileName = `${userId}-${Date.now()}-${fileName}`;
       const fileUrl = await uploadToS3(file, s3FileName);
 
       const upload = await prisma.upload.create({
         data: {
-          userId: session.user.id,
+          userId, // Use Clerk userId
           filePath: fileUrl,
           title: formData.get(`title-${fileName}`) as string || title,
           artist: formData.get(`artist-${fileName}`) as string || artist,

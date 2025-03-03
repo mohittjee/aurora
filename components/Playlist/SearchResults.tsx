@@ -3,13 +3,13 @@
 import { useState, useEffect } from "react";
 import InfiniteScroll from "react-infinite-scroll-component";
 import Image from "next/image";
-import { Card, CardContent } from "@/components/ui/card"; // Assuming shadcn/ui
+import { Card, CardContent } from "@/components/ui/card";
 import { useAudioStore } from "@/store/audioStore";
 import { MusicSnippet } from "@/types/music";
 import { Loader2, Heart } from "lucide-react";
 import axios from "axios";
-import { useSession } from "next-auth/react";
-import { Button } from "@/components/ui/button"; // Assuming shadcn/ui
+import { useUser } from "@clerk/nextjs"; // Clerk hook
+import { Button } from "@/components/ui/button";
 
 interface SearchResultsProps {
   loadMore: (query: string) => void;
@@ -17,15 +17,15 @@ interface SearchResultsProps {
 }
 
 export default function SearchResults({ loadMore, initialQuery }: SearchResultsProps) {
-  const { data: session } = useSession();
+  const { user, isSignedIn } = useUser(); // Clerk's useUser hook
   const { searchResults, setCurrentTrack, setQueue, setPlaying, loading, playlistMetadata, error, hasMore, totalTracks } = useAudioStore();
   const [durations, setDurations] = useState<Record<string, number>>({});
 
   const fetchDurations = async (tracks: MusicSnippet[]) => {
     const durationMap: Record<string, number> = {};
     const uncachedVideoIds = tracks
-      .filter((t) => t.snippet.videoId && t.snippet.source === "youtube_music" && !durations[t.snippet.videoId])
-      .map((t) => t.snippet.videoId!);
+      .filter((t) => t.videoId && t.source === "youtube_music" && !durations[t.videoId])
+      .map((t) => t.videoId!);
 
     if (uncachedVideoIds.length > 0) {
       try {
@@ -36,7 +36,6 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
             key: process.env.NEXT_PUBLIC_YOUTUBE_API_KEY,
           },
         });
-        console.log("YouTube Duration Response:", ytResponse.data);
         ytResponse.data.items.forEach((item: any) => {
           const match = item.contentDetails.duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
           const hours = parseInt(match?.[1] || "0") * 3600;
@@ -45,16 +44,16 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
           durationMap[item.id] = hours + minutes + seconds;
         });
       } catch (error) {
-        console.error("YouTube Duration Fetch Error:", error.response?.data || error.message);
+        // console.error("YouTube Duration Fetch Error:", error.response?.data || error.message);
+        console.error("YouTube Duration Fetch Error:", error);
       }
     }
 
-    console.log("Fetched Durations:", durationMap);
     setDurations((prev) => ({ ...prev, ...durationMap }));
   };
 
   const handleLike = async (trackId: string) => {
-    if (!session?.user?.id) return;
+    if (!isSignedIn) return; // Only allow likes if signed in
     try {
       await axios.post("/api/likes", { trackId });
       alert("Song liked!");
@@ -65,7 +64,7 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
   };
 
   const handleSavePlaylist = async () => {
-    if (!session?.user?.id || !playlistMetadata) return;
+    if (!isSignedIn || !playlistMetadata) return;
     try {
       await axios.post("/api/playlists", { name: playlistMetadata.title, tracks: searchResults });
       alert("Playlist saved!");
@@ -130,7 +129,7 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
               <p className="text-sm text-gray-600">{playlistMetadata.creator}</p>
             </div>
             <p className="text-sm text-gray-500 mt-1">{totalTracks} songs</p>
-            {session && (
+            {isSignedIn && (
               <Button
                 variant="outline"
                 size="sm"
@@ -154,7 +153,7 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
       >
         <div className="space-y-2">
           {searchResults.map((item, index) => {
-            const id = item.snippet.videoId || `${item.snippet.title}-${item.snippet.artist}`;
+            const id = item.videoId || `${item.title}-${item.artist}`;
             const duration = durations[id] !== undefined ? formatDuration(durations[id]) : "N/A";
             return (
               <Card
@@ -165,27 +164,27 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
                 <CardContent className="p-2 flex items-center gap-2 flex-1">
                   <span className="text-gray-500 text-sm w-8">{index + 1}</span>
                   <Image
-                    src={item.snippet.thumbnails.default.url}
-                    alt={item.snippet.title}
+                    src={item.thumbnails.default.url}
+                    alt={item.title}
                     width={48}
                     height={48}
                     className="rounded"
                   />
                   <div className="flex-1">
-                    <p className="text-sm font-medium">{item.snippet.title}</p>
-                    <p className="text-xs text-gray-600">{item.snippet.artist}</p>
+                    <p className="text-sm font-medium">{item.title}</p>
+                    <p className="text-xs text-gray-600">{item.artist}</p>
                   </div>
                   <span className="text-xs text-gray-500">{duration}</span>
-                  <span className="text-xs text-gray-400">{item.snippet.source}</span>
+                  <span className="text-xs text-gray-400">{item.source}</span>
                 </CardContent>
-                {session && (
+                {isSignedIn && (
                   <Button
                     variant="ghost"
                     size="icon"
                     className="mr-2"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleLike(`${item.snippet.title}-${item.snippet.artist}`);
+                      handleLike(`${item.title}-${item.artist}`);
                     }}
                   >
                     <Heart className="h-4 w-4 text-blue-600 hover:text-blue-800" />

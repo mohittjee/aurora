@@ -19,7 +19,7 @@ export default function ProgressBar({ url, onProgress, onDuration }: ProgressBar
   const playerRef = useRef<ReactPlayer>(null);
 
   const currentIndex = currentTrack
-    ? queue.findIndex((item) => item.snippet.videoId === currentTrack.snippet.videoId)
+    ? queue.findIndex((item) => item.videoId === currentTrack.videoId)
     : -1;
 
   const handleProgress = (state: { played: number; playedSeconds: number }) => {

@@ -64,7 +64,7 @@ export async function fetchYouTubePlaylist(playlistId: string, offset: number): 
     });
     const channelData = channelResponse.data;
 
-    const playlistMetadata: PlaylistMetadata = playlistData.items[0]?.snippet
+    const playlistMetadata = playlistData.items[0]?.snippet
       ? {
           title: playlistData.items[0].snippet.title,
           thumbnail: playlistData.items[0].snippet.thumbnails.default.url,
