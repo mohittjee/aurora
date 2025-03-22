@@ -1,38 +1,42 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import axios from "axios";
-import { prisma } from "@/lib/prisma";
+import { type NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { getAuth } from "@clerk/nextjs/server"
 
 export async function GET(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { userId } = getAuth(req)
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
     const likedSongs = await prisma.like.findMany({
       where: { userId },
-      select: { trackId: true },
-    });
+    })
 
-    const trackIds = likedSongs.map((like) => like.trackId);
-    const response = await axios.post(
-      "https://api.x.ai/v1/recommendations",
-      { trackIds },
-      { headers: { Authorization: `Bearer ${process.env.GROK_API_KEY}` } }
-    );
+    // Extract track IDs from the track JSON
+    const trackIds = likedSongs
+      .map((like) => {
+        // Safely handle the track object
+        if (typeof like.track === "object" && like.track !== null) {
+          const track = like.track as Record<string, any>
+          return track.videoId || track.id || ""
+        }
+        return ""
+      })
+      .filter(Boolean)
 
-    const recommendations = response.data.recommendations.map((item: any) => ({
-      title: item.title,
-      artist: item.artist,
-      thumbnails: { default: { url: item.thumbnail || "https://via.placeholder.com/120" } },
-      videoId: item.url,
-      source: "jiosaavn",
-    }));
+    // Mock recommendations since xAI endpoint isn't available
+    const mockRecommendations = trackIds.map((id) => ({
+      trackId: `${id}-recommended`,
+      title: `Recommended Song for ${id}`,
+      artist: "AI Artist",
+      source: "mock",
+      videoId: `${id}-mock`,
+      thumbnails: { default: { url: "https://placehold.co/120" } },
+    }))
 
-    return NextResponse.json({ recommendations });
-  } catch (error: any) {
-    console.error("AI Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to fetch recommendations" }, { status: 500 });
+    return NextResponse.json({ recommendations: mockRecommendations })
+  } catch (error) {
+    console.error("AI Error:", error instanceof Error ? error.message : "Unknown error")
+    return NextResponse.json({ error: "Failed to fetch recommendations" }, { status: 500 })
   }
 }
+

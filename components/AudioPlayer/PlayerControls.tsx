@@ -1,79 +1,171 @@
-"use client";
+"use client"
 
-import { useAudioStore } from "@/store/audioStore";
-import { Button } from "@/components/ui/button"; // Assuming you have a UI library like shadcn/ui
-import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat } from "lucide-react";
+import { Button } from "@/components/ui/button"
+import { Slider } from "@/components/ui/slider"
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  Repeat,
+  Shuffle,
+  Repeat1Icon as RepeatOne,
+} from "lucide-react"
+import { useAudioStore } from "@/store/audioStore"
+import { useEffect } from "react"
+import type { PlayMode } from "@/types/music"
+import { toast } from "sonner"
 
 export default function PlayerControls() {
-  const { queue, currentTrack, playing, setPlaying, playMode, setPlayMode, setCurrentTrack } = useAudioStore();
+  const {
+    playing,
+    setPlaying,
+    currentTrack,
+    queue,
+    setCurrentTrack,
+    playMode,
+    setPlayMode,
+    volume,
+    setVolume,
+    muted,
+    setMuted,
+  } = useAudioStore()
 
   const currentIndex = currentTrack
-    ? queue.findIndex((item) => item.videoId === currentTrack.videoId)
-    : -1;
+    ? queue.findIndex((item) => {
+        if (currentTrack.source === "upload" && item.source === "upload") {
+          return item.filePath === currentTrack.filePath
+        }
+        return item.videoId === currentTrack.videoId
+      })
+    : -1
+
+  // Initialize volume to system volume if available
+  useEffect(() => {
+    if (typeof window !== "undefined" && "AudioContext" in window) {
+      try {
+        const audioContext = new AudioContext()
+        audioContext.addEventListener("statechange", () => {
+          if (audioContext.state === "running") {
+            const analyser = audioContext.createAnalyser()
+            const gainNode = audioContext.createGain()
+            gainNode.connect(analyser)
+            // Get the current system volume (approximation)
+            const systemVolume = Math.round(gainNode.gain.value * 100)
+            if (systemVolume > 0) {
+              setVolume(systemVolume)
+            }
+          }
+        })
+        audioContext.resume()
+      } catch (error) {
+        // Fallback to default volume
+      }
+    }
+  }, [setVolume])
+
+  const handlePlayPause = () => {
+    setPlaying(!playing)
+  }
+
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentTrack(queue[currentIndex - 1])
+      setPlaying(true)
+    }
+  }
 
   const handleNext = () => {
-    if (queue.length === 0) return;
-    let nextIndex: number;
     if (playMode === "shuffle") {
-      nextIndex = Math.floor(Math.random() * queue.length);
-    } else if (currentIndex < queue.length - 1) {
-      nextIndex = currentIndex + 1;
-    } else if (playMode === "loop") {
-      nextIndex = 0;
-    } else {
-      return;
+      // Play a random track
+      const randomIndex = Math.floor(Math.random() * queue.length)
+      setCurrentTrack(queue[randomIndex])
+      setPlaying(true)
+      return
     }
-    setCurrentTrack(queue[nextIndex]);
-    setPlaying(true);
-  };
 
-  const handleBack = () => {
-    if (queue.length === 0) return;
-    let prevIndex: number;
-    if (currentIndex > 0) {
-      prevIndex = currentIndex - 1;
+    if (currentIndex < queue.length - 1) {
+      setCurrentTrack(queue[currentIndex + 1])
+      setPlaying(true)
     } else if (playMode === "loop") {
-      prevIndex = queue.length - 1;
+      // Loop back to the first track
+      setCurrentTrack(queue[0])
+      setPlaying(true)
     } else {
-      return;
+      // End of queue and not looping
+      setPlaying(false)
+      toast.info("End of playlist reached")
     }
-    setCurrentTrack(queue[prevIndex]);
-    setPlaying(true);
-  };
+  }
 
   const togglePlayMode = () => {
-    const modes = ["normal", "shuffle", "single", "loop"] as const;
-    const currentModeIndex = modes.indexOf(playMode);
-    const nextMode = modes[(currentModeIndex + 1) % modes.length];
-    setPlayMode(nextMode);
-  };
+    const modes: PlayMode[] = ["normal", "shuffle", "single", "loop"]
+    const currentModeIndex = modes.indexOf(playMode)
+    const nextMode = modes[(currentModeIndex + 1) % modes.length]
+    setPlayMode(nextMode)
 
-  const modeIcon = playMode === "shuffle" ? <Shuffle className="h-4 w-4" /> : <Repeat className="h-4 w-4" />;
+    // Show toast with the new mode
+    const modeMessages = {
+      normal: "Normal playback",
+      shuffle: "Shuffle playback",
+      single: "Repeat current track",
+      loop: "Loop playlist",
+    }
+    toast.info(modeMessages[nextMode])
+  }
+
+  const handleVolumeChange = (value: number[]) => {
+    setVolume(value[0])
+    if (muted && value[0] > 0) setMuted(false)
+  }
+
+  const handleMuteToggle = () => {
+    setMuted(!muted)
+  }
+
+  // Render the appropriate play mode icon
+  const renderPlayModeIcon = () => {
+    switch (playMode) {
+      case "shuffle":
+        return <Shuffle className="h-5 w-5" />
+      case "single":
+        return <RepeatOne className="h-5 w-5" />
+      case "loop":
+      case "normal":
+      default:
+        return <Repeat className="h-5 w-5" />
+    }
+  }
 
   return (
-    <div className="flex gap-2">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={handleBack}
-        disabled={queue.length === 0 || (currentIndex <= 0 && playMode !== "loop")}
-      >
-        <SkipBack className="h-4 w-4" />
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" onClick={handlePrevious} disabled={currentIndex <= 0}>
+        <SkipBack className="h-5 w-5" />
       </Button>
-      <Button variant="ghost" size="icon" onClick={() => setPlaying(!playing)} disabled={!currentTrack}>
-        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      <Button variant="ghost" onClick={handlePlayPause}>
+        {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
       </Button>
       <Button
         variant="ghost"
-        size="icon"
         onClick={handleNext}
-        disabled={queue.length === 0 || (currentIndex >= queue.length - 1 && playMode !== "loop")}
+        disabled={currentIndex >= queue.length - 1 && playMode !== "loop" && playMode !== "shuffle"}
       >
-        <SkipForward className="h-4 w-4" />
+        <SkipForward className="h-5 w-5" />
       </Button>
-      <Button variant={playMode === "normal" ? "ghost" : "outline"} size="icon" onClick={togglePlayMode} title={playMode}>
-        {playMode === "normal" ? <Shuffle className="h-4 w-4 opacity-50" /> : modeIcon}
+      <Button
+        variant="ghost"
+        onClick={togglePlayMode}
+        title={`Play mode: ${playMode}`}
+        className={playMode !== "normal" ? "text-blue-500" : ""}
+      >
+        {renderPlayModeIcon()}
       </Button>
+      <Button variant="ghost" onClick={handleMuteToggle}>
+        {muted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+      </Button>
+      <Slider value={[muted ? 0 : volume]} max={100} step={1} onValueChange={handleVolumeChange} className="w-24" />
     </div>
-  );
+  )
 }

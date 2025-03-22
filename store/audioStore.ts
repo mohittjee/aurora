@@ -1,37 +1,50 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { MusicSnippet, PlaylistMetadata } from "@/types/music";
+import { create } from "zustand"
+import { persist } from "zustand/middleware"
+import type { MusicSnippet, PlaylistMetadata } from "@/types/music"
 
-type PlayMode = "normal" | "shuffle" | "single" | "loop";
+type PlayMode = "normal" | "shuffle" | "single" | "loop"
 
 interface AudioState {
-  queue: MusicSnippet[];
-  setQueue: (queue: MusicSnippet[]) => void;
-  currentTrack: MusicSnippet | null;
-  setCurrentTrack: (track: MusicSnippet | null) => void;
-  playing: boolean;
-  setPlaying: (playing: boolean) => void;
-  playMode: PlayMode;
-  setPlayMode: (mode: PlayMode) => void;
-  moveTrack: (fromIndex: number, toIndex: number) => void;
-  searchResults: MusicSnippet[];
-  setSearchResults: (results: MusicSnippet[]) => void;
-  appendSearchResults: (results: MusicSnippet[]) => void;
-  loading: boolean;
-  setLoading: (loading: boolean) => void;
-  playlistMetadata: PlaylistMetadata | null;
-  setPlaylistMetadata: (metadata: PlaylistMetadata | null) => void;
-  error: string | null;
-  setError: (error: string | null) => void;
-  hasMore: boolean;
-  setHasMore: (hasMore: boolean) => void;
-  offset: number;
-  setOffset: (offset: number) => void;
-  totalTracks: number;
-  setTotalTracks: (total: number) => void;
-  youtubeCache: Record<string, string>;
-  setYoutubeCache: (key: string, videoId: string) => void;
-  reset: () => void;
+  queue: MusicSnippet[]
+  setQueue: (queue: MusicSnippet[]) => void
+  currentTrack: MusicSnippet | null
+  setCurrentTrack: (track: MusicSnippet | null) => void
+  playing: boolean
+  setPlaying: (playing: boolean) => void
+  playMode: PlayMode
+  setPlayMode: (mode: PlayMode) => void
+  moveTrack: (fromIndex: number, toIndex: number) => void
+  searchResults: MusicSnippet[]
+  setSearchResults: (results: MusicSnippet[]) => void
+  appendSearchResults: (results: MusicSnippet[]) => void
+  loading: boolean
+  setLoading: (loading: boolean) => void
+  playlistMetadata: PlaylistMetadata | null
+  setPlaylistMetadata: (metadata: PlaylistMetadata | null) => void
+  error: string | null
+  setError: (error: string | null) => void
+  hasMore: boolean
+  setHasMore: (hasMore: boolean) => void
+  offset: number
+  setOffset: (offset: number) => void
+  totalTracks: number
+  setTotalTracks: (total: number) => void
+  youtubeCache: Record<string, string>
+  setYoutubeCache: (key: string, videoId: string) => void
+  currentTime: number
+  setCurrentTime: (time: number) => void
+  duration: number
+  setDuration: (duration: number) => void
+  isBuffering: boolean
+  setIsBuffering: (buffering: boolean) => void
+  volume: number // 0 to 100
+  setVolume: (volume: number) => void
+  muted: boolean
+  setMuted: (muted: boolean) => void
+  searchStage: string | null
+  setSearchStage: (stage: string | null) => void
+  reset: () => void
+  seekTo: (time: number) => void
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -47,10 +60,10 @@ export const useAudioStore = create<AudioState>()(
       setPlayMode: (playMode) => set({ playMode }),
       moveTrack: (fromIndex, toIndex) =>
         set((state) => {
-          const newQueue = [...state.queue];
-          const [movedItem] = newQueue.splice(fromIndex, 1);
-          newQueue.splice(toIndex, 0, movedItem);
-          return { queue: newQueue };
+          const newQueue = [...state.queue]
+          const [movedItem] = newQueue.splice(fromIndex, 1)
+          newQueue.splice(toIndex, 0, movedItem)
+          return { queue: newQueue }
         }),
       searchResults: [],
       setSearchResults: (searchResults) => set({ searchResults }),
@@ -68,21 +81,43 @@ export const useAudioStore = create<AudioState>()(
       totalTracks: 0,
       setTotalTracks: (total) => set({ totalTracks: total }),
       youtubeCache: {},
-      setYoutubeCache: (key, videoId) => set((state) => ({
-        youtubeCache: { ...state.youtubeCache, [key]: videoId },
-      })),
-      reset: () => set({
-        queue: [],
-        currentTrack: null,
-        playing: false,
-        searchResults: [],
-        playlistMetadata: null,
-        error: null,
-        hasMore: true,
-        offset: 0,
-        totalTracks: 0,
-        youtubeCache: {},
-      }),
+      setYoutubeCache: (key, videoId) =>
+        set((state) => ({
+          youtubeCache: { ...state.youtubeCache, [key]: videoId },
+        })),
+      currentTime: 0,
+      setCurrentTime: (currentTime) => set({ currentTime }),
+      duration: 0,
+      setDuration: (duration) => set({ duration }),
+      isBuffering: false,
+      setIsBuffering: (isBuffering) => set({ isBuffering }),
+      volume: 100,
+      setVolume: (volume) => set({ volume: Math.max(0, Math.min(100, volume)) }),
+      muted: false,
+      setMuted: (muted) => set({ muted }),
+      searchStage: null,
+      setSearchStage: (searchStage) => set({ searchStage }),
+      seekTo: (time) => {
+        set({ currentTime: time })
+      },
+      reset: () =>
+        set({
+          queue: [],
+          currentTrack: null,
+          playing: false,
+          playMode: "normal",
+          searchResults: [],
+          playlistMetadata: null,
+          error: null,
+          hasMore: true,
+          offset: 0,
+          totalTracks: 0,
+          youtubeCache: {},
+          currentTime: 0,
+          duration: 0,
+          isBuffering: false,
+          searchStage: null,
+        }),
     }),
     {
       name: "audio-storage",
@@ -91,7 +126,10 @@ export const useAudioStore = create<AudioState>()(
         currentTrack: state.currentTrack,
         playMode: state.playMode,
         youtubeCache: state.youtubeCache,
+        volume: state.volume,
+        muted: state.muted,
       }),
-    }
-  )
-);
+    },
+  ),
+)
+

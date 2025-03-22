@@ -1,161 +1,282 @@
-import { NextRequest, NextResponse } from "next/server";
-import axios from "axios";
-import { fetchJioSaavnTracks } from "@/lib/jiosaavn";
-import { fetchYouTubeSearch, fetchYouTubePlaylist } from "@/lib/youtube";
+import { type NextRequest, NextResponse } from "next/server"
+import axios from "axios"
+import { fetchJioSaavnTracks } from "@/lib/jiosaavn"
+import { fetchYouTubeSearch, fetchYouTubePlaylist } from "@/lib/youtube"
+
+// In-memory cache (use Redis in production)
+const cache: Record<string, { items: any[]; playlist: any; total: number; timestamp: number; stage: string }> = {}
+const CACHE_TTL = 60 * 60 * 1000 // 1 hour TTL
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const query = searchParams.get("query") || "";
-  const offset = parseInt(searchParams.get("offset") || "0", 10);
-  const spotifyClientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
-  const spotifyClientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+  const { searchParams } = new URL(req.url)
+  const query = searchParams.get("query") || ""
+  const offset = Number.parseInt(searchParams.get("offset") || "0", 10)
+  const limit = Number.parseInt(searchParams.get("limit") || "20", 10)
+  const spotifyClientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID
+  const spotifyClientSecret = process.env.SPOTIFY_CLIENT_SECRET
 
   try {
-    const spotifyAuth = await axios.post(
-      "https://accounts.spotify.com/api/token",
-      "grant_type=client_credentials",
-      {
+    // Improved platform detection
+    const isYoutubeUrl = query.includes("youtube.com") || query.includes("youtu.be")
+    const isSpotifyUrl = query.includes("spotify.com")
+    const isJioSaavnUrl = query.includes("jiosaavn.com") || query.includes("saavn.com")
+
+    const urlParams = new URLSearchParams(query.split("?")[1] || "")
+    const youtubePlaylistId = isYoutubeUrl ? urlParams.get("list") || urlParams.get("playlist") : null
+    const youtubeVideoId = isYoutubeUrl
+      ? urlParams.get("v") || (query.includes("youtu.be") ? query.split("/").pop() : null)
+      : null
+    const spotifyTrackId = isSpotifyUrl ? query.match(/track\/([a-zA-Z0-9]+)/)?.[1] : null
+    const spotifyPlaylistId = isSpotifyUrl ? query.match(/playlist\/([a-zA-Z0-9]+)/)?.[1] : null
+    const jiosaavnSongId = isJioSaavnUrl ? query.match(/song\/([a-zA-Z0-9]+)/)?.[1] : null
+    const jiosaavnAlbumId = isJioSaavnUrl ? query.match(/album\/([a-zA-Z0-9]+)/)?.[1] : null
+    const isKeywordSearch =
+      !youtubePlaylistId &&
+      !youtubeVideoId &&
+      !spotifyTrackId &&
+      !spotifyPlaylistId &&
+      !jiosaavnSongId &&
+      !jiosaavnAlbumId &&
+      query.trim().length > 0
+
+    // Enhanced caching with TTL check
+    const cacheKey = `${query}-${offset}-${limit}`
+    if (cache[cacheKey]) {
+      const cachedData = cache[cacheKey]
+      if (Date.now() - cachedData.timestamp < CACHE_TTL) {
+        console.log(`Cache hit for ${cacheKey}`)
+        return NextResponse.json(cachedData)
+      } else {
+        console.log(`Cache expired for ${cacheKey}`)
+        // Cache expired, delete it
+        delete cache[cacheKey]
+      }
+    }
+
+    let items: any[] = []
+    let playlistMetadata = null
+    let total = 0
+    let stage = "initializing"
+
+    // Get Spotify token if needed
+    let spotifyToken = null
+    if (isSpotifyUrl || isKeywordSearch) {
+      stage = "authenticating_spotify"
+      const spotifyAuth = await axios.post("https://accounts.spotify.com/api/token", "grant_type=client_credentials", {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           Authorization: `Basic ${Buffer.from(`${spotifyClientId}:${spotifyClientSecret}`).toString("base64")}`,
         },
-      }
-    );
-    const spotifyToken = spotifyAuth.data.access_token;
-
-    const urlParams = new URLSearchParams(query.split("?")[1] || "");
-    const playlistId = urlParams.get("list") || urlParams.get("playlist");
-    const videoId = urlParams.get("v") || (query.includes("youtu.be") ? query.split("/").pop() : null);
-    const spotifyTrackId = query.match(/track\/([a-zA-Z0-9]+)/)?.[1];
-    const spotifyPlaylistId = query.match(/playlist\/([a-zA-Z0-9]+)/)?.[1];
-
-    if (playlistId || spotifyPlaylistId) {
-      if (playlistId) {
-        const { items, playlistMetadata, total } = await fetchYouTubePlaylist(playlistId, offset);
-        return NextResponse.json({ items, playlist: playlistMetadata, total });
-      } else if (spotifyPlaylistId) {
-        console.log(`Fetching Spotify playlist ${spotifyPlaylistId} with offset ${offset}`);
-        const playlistResponse = await axios.get(`https://api.spotify.com/v1/playlists/${spotifyPlaylistId}/tracks`, {
-          headers: { Authorization: `Bearer ${spotifyToken}` },
-          params: { offset, limit: 50 },
-        });
-        const playlistData = playlistResponse.data;
-
-        const metadataResponse = await axios.get(`https://api.spotify.com/v1/playlists/${spotifyPlaylistId}`, {
-          headers: { Authorization: `Bearer ${spotifyToken}` },
-        });
-        const metadata = metadataResponse.data;
-
-        const playlistMetadata = {
-          title: metadata.name,
-          thumbnail: metadata.images[0]?.url || "https://via.placeholder.com/120",
-          creator: metadata.owner.display_name,
-          creatorThumbnail: metadata.owner.images?.[0]?.url || "https://via.placeholder.com/32",
-        };
-
-        const itemsPromises = playlistData.items.map(async (item: any) => {
-          const track = item.track;
-          const jioSaavnResult = await fetchJioSaavnTracks(`${track.name} ${track.artists[0].name}`, 1);
-          let videoId = jioSaavnResult[0]?.videoId || "";
-
-          if (!videoId) {
-            const proxyResult = await axios.get(`https://music-player-proxy.onrender.com/youtube?query=${encodeURIComponent(`${track.name} ${track.artists[0].name}`)}&limit=1`);
-            videoId = proxyResult.data.videoId || "";
-          }
-
-          if (!videoId) {
-            const youtubeResult = await fetchYouTubeSearch(`${track.name} ${track.artists[0].name}`, 1);
-            videoId = youtubeResult[0]?.videoId || "";
-          }
-
-          return {
-            snippet: {
-              title: track.name,
-              artist: track.artists[0].name,
-              thumbnails: { default: { url: track.album.images[0]?.url || "https://via.placeholder.com/120" } },
-              videoId,
-              source: videoId && videoId.includes("youtube") ? "youtube_music" : "jiosaavn",
-            },
-          };
-        });
-
-        const items = await Promise.all(itemsPromises);
-        console.log(`Fetched ${items.length} items from Spotify playlist at offset ${offset}`);
-        return NextResponse.json({
-          items,
-          playlist: playlistMetadata,
-          total: playlistData.total,
-        });
-      }
+      })
+      spotifyToken = spotifyAuth.data.access_token
     }
 
-    if (videoId) {
-      const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${process.env.NEXT_PUBLIC_YOUTUBE_API_KEY}`;
-      const response = await fetch(url);
-      const data = await response.json();
+    if (youtubePlaylistId) {
+      stage = "fetching_youtube_playlist"
+      const {
+        items: ytItems,
+        playlistMetadata: ytMeta,
+        total: ytTotal,
+      } = await fetchYouTubePlaylist(youtubePlaylistId, offset)
 
-      if (data.error) throw new Error(data.error.message || "YouTube API error");
+      // Filter out items with missing data
+      items = ytItems.filter((item) => item.title && item.artist && item.thumbnails?.default?.url)
 
-      const items = data.items.map((item: any) => ({
-        snippet: {
-          title: item.snippet.title,
-          artist: item.snippet.channelTitle,
-          thumbnails: item.snippet.thumbnails,
+      playlistMetadata = {
+        ...ytMeta,
+        link: query, // Store the original link
+      }
+      total = ytTotal
+    } else if (youtubeVideoId) {
+      stage = "fetching_youtube_video"
+      const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${youtubeVideoId}&key=${process.env.NEXT_PUBLIC_YOUTUBE_API_KEY}`
+      const response = await fetch(url)
+      const data = await response.json()
+      if (data.error) throw new Error(data.error.message || "YouTube API error")
+
+      items = data.items
+        .filter((item: any) => item.snippet && item.snippet.title)
+        .map((item: any) => ({
+          title: item.snippet.title || "Unknown Title",
+          artist: item.snippet.channelTitle || "Unknown Artist",
+          thumbnails: { default: { url: item.snippet.thumbnails?.default?.url || "https://placehold.co/120" } },
           videoId: item.id,
           source: "youtube",
-        },
-      }));
-      return NextResponse.json({ items, playlist: null, total: items.length });
+        }))
+      total = items.length
+    } else if (spotifyPlaylistId) {
+      stage = "fetching_spotify_playlist"
+      const playlistResponse = await axios.get(`https://api.spotify.com/v1/playlists/${spotifyPlaylistId}/tracks`, {
+        headers: { Authorization: `Bearer ${spotifyToken}` },
+        params: { offset, limit },
+      })
+      const playlistData = playlistResponse.data
+
+      const metadataResponse = await axios.get(`https://api.spotify.com/v1/playlists/${spotifyPlaylistId}`, {
+        headers: { Authorization: `Bearer ${spotifyToken}` },
+      })
+      const metadata = metadataResponse.data
+
+      playlistMetadata = {
+        title: metadata.name,
+        thumbnail: metadata.images[0]?.url || "https://placehold.co/120",
+        creator: metadata.owner.display_name,
+        creatorThumbnail: metadata.owner.images?.[0]?.url || "https://placehold.co/32",
+        link: query, // Store the original link
+      }
+
+      items = playlistData.items
+        .filter((item: any) => item.track && item.track.name)
+        .map((item: any) => ({
+          title: item.track.name || "Unknown Title",
+          artist: item.track.artists.map((a: any) => a.name).join(", ") || "Unknown Artist",
+          thumbnails: { default: { url: item.track.album.images[0]?.url || "https://placehold.co/120" } },
+          videoId: "", // Placeholder
+          source: "spotify",
+        }))
+      total = playlistData.total
     } else if (spotifyTrackId) {
+      stage = "fetching_spotify_track"
       const trackResponse = await axios.get(`https://api.spotify.com/v1/tracks/${spotifyTrackId}`, {
         headers: { Authorization: `Bearer ${spotifyToken}` },
-      });
-      const trackData = trackResponse.data;
-
-      const jioSaavnResult = await fetchJioSaavnTracks(`${trackData.name} ${trackData.artists[0].name}`, 1);
-      let videoId = jioSaavnResult[0]?.videoId || "";
-
-      if (!videoId) {
-        const proxyResult = await axios.get(`https://music-player-proxy.onrender.com/youtube?query=${encodeURIComponent(`${trackData.name} ${trackData.artists[0].name}`)}&limit=1`);
-        videoId = proxyResult.data.videoId || "";
-      }
-
-      if (!videoId) {
-        const youtubeResult = await fetchYouTubeSearch(`${trackData.name} ${trackData.artists[0].name}`, 1);
-        videoId = youtubeResult[0]?.videoId || "";
-      }
-
-      const items = [{
-        snippet: {
-          title: trackData.name,
-          artist: trackData.artists[0].name,
-          thumbnails: { default: { url: trackData.album.images[0]?.url || "https://via.placeholder.com/120" } },
-          videoId,
-          source: videoId && videoId.includes("youtube") ? "youtube_music" : "jiosaavn",
+      })
+      const trackData = trackResponse.data
+      items = [
+        {
+          title: trackData.name || "Unknown Title",
+          artist: trackData.artists.map((a: any) => a.name).join(", ") || "Unknown Artist",
+          thumbnails: { default: { url: trackData.album.images[0]?.url || "https://placehold.co/120" } },
+          videoId: "", // Placeholder
+          source: "spotify",
         },
-      }];
-      return NextResponse.json({ items, playlist: null, total: 1 });
-    }
-
-    if (!query) throw new Error("Query parameter is required for search");
-
-    const jioSaavnItems = await fetchJioSaavnTracks(query, 5);
-    const remainingSlots = 5 - jioSaavnItems.length;
-    let youtubeItems: any[] = [];
-    if (remainingSlots > 0) {
-      const proxyResult = await axios.get(`https://music-player-proxy.onrender.com/youtube?query=${encodeURIComponent(query)}&limit=${remainingSlots}`);
-      youtubeItems = proxyResult.data.items.length >= remainingSlots ? proxyResult.data.items.slice(0, remainingSlots) : proxyResult.data.items;
-
-      if (youtubeItems.length < remainingSlots) {
-        const youtubeResult = await fetchYouTubeSearch(query, remainingSlots - youtubeItems.length);
-        youtubeItems = [...youtubeItems, ...youtubeResult];
+      ]
+      total = 1
+    } else if (jiosaavnSongId) {
+      stage = "fetching_jiosaavn_song"
+      try {
+        const response = await axios.get(`https://saavn.dev/api/songs/${jiosaavnSongId}`)
+        const data = response.data.data.results[0]
+        items = [
+          {
+            title: data.name || "Unknown Title",
+            artist: data.artists.primary.map((a: any) => a.name).join(", ") || "Unknown Artist",
+            thumbnails: {
+              default: {
+                url: data.image.find((img: any) => img.quality === "500x500")?.url || "https://placehold.co/120",
+              },
+            },
+            videoId: data.downloadUrl.find((url: any) => url.quality === "320kbps")?.url || data.url,
+            source: "jiosaavn",
+          },
+        ]
+        total = 1
+      } catch (error) {
+        console.error("JioSaavn song fetch error:", error)
+        items = []
+        total = 0
       }
+    } else if (jiosaavnAlbumId) {
+      stage = "fetching_jiosaavn_album"
+      try {
+        const response = await axios.get(`https://saavn.dev/api/albums/${jiosaavnAlbumId}`)
+        const data = response.data.data
+
+        items = data.songs
+          .filter((song: any) => song.name && song.artists)
+          .map((song: any) => ({
+            title: song.name || "Unknown Title",
+            artist: song.artists.primary.map((a: any) => a.name).join(", ") || "Unknown Artist",
+            thumbnails: {
+              default: {
+                url: song.image.find((img: any) => img.quality === "500x500")?.url || "https://placehold.co/120",
+              },
+            },
+            videoId: song.downloadUrl.find((url: any) => url.quality === "320kbps")?.url || song.url,
+            source: "jiosaavn",
+          }))
+
+        playlistMetadata = {
+          title: data.name,
+          thumbnail: data.image.find((img: any) => img.quality === "500x500")?.url || "https://placehold.co/120",
+          creator: data.artists.primary.map((a: any) => a.name).join(", ") || "Unknown Artist",
+          creatorThumbnail: "https://placehold.co/32",
+          link: query, // Store the original link
+        }
+        total = items.length
+      } catch (error) {
+        console.error("JioSaavn album fetch error:", error)
+        items = []
+        total = 0
+      }
+    } else if (isKeywordSearch) {
+      // Fetch from all sources in parallel
+      stage = "searching_jiosaavn"
+      const jioSaavnPromise = fetchJioSaavnTracks(query, 3).catch((err) => {
+        console.error("JioSaavn search error:", err)
+        return []
+      })
+
+      stage = "searching_youtube"
+      const youtubePromise = axios
+        .get(
+          `https://music-player-proxy-production.up.railway.app/youtube?query=${encodeURIComponent(query)}&limit=2`,
+          { timeout: 5000 }, // Add timeout to prevent long waits
+        )
+        .then((res) => res.data.items?.slice(0, 2) || [])
+        .catch((err) => {
+          console.error("Proxy fetch error:", err)
+          return fetchYouTubeSearch(query, 2).catch((err) => {
+            console.error("YouTube API error:", err)
+            return []
+          })
+        })
+
+      stage = "searching_spotify"
+      const spotifyPromise = axios
+        .get("https://api.spotify.com/v1/search", {
+          headers: { Authorization: `Bearer ${spotifyToken}` },
+          params: { q: query, type: "track", limit: 2 },
+        })
+        .then((res) =>
+          res.data.tracks.items.map((track: any) => ({
+            title: track.name || "Unknown Title",
+            artist: track.artists.map((a: any) => a.name).join(", ") || "Unknown Artist",
+            thumbnails: { default: { url: track.album.images[0]?.url || "https://placehold.co/120" } },
+            videoId: "", // Placeholder
+            source: "spotify",
+          })),
+        )
+        .catch((err) => {
+          console.error("Spotify search error:", err)
+          return []
+        })
+
+      // Wait for all promises to resolve
+      stage = "processing_results"
+      const [jioSaavnItems, youtubeItems, spotifyItems] = await Promise.all([
+        jioSaavnPromise,
+        youtubePromise,
+        spotifyPromise,
+      ])
+
+      items = [...jioSaavnItems, ...youtubeItems, ...spotifyItems].filter((item) => item.title && item.artist) // Filter out items with missing data
+      total = items.length
+    } else {
+      throw new Error("Invalid query or unsupported platform")
     }
 
-    const items = [...jioSaavnItems, ...youtubeItems.map(item => ({ snippet: item.snippet }))]; // Wrap items in snippet for consistency
-    return NextResponse.json({ items, playlist: null, total: items.length });
-  } catch (error: any) {
-    console.error("API Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to fetch data" }, { status: 500 });
+    const responseData = { items, playlist: playlistMetadata, total, stage }
+    cache[cacheKey] = { ...responseData, timestamp: Date.now() }
+    return NextResponse.json(responseData)
+  } catch (error) {
+    console.error("API Error in /api/music:", error instanceof Error ? error.message : "Unknown error")
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to fetch data",
+        stage: "error",
+      },
+      { status: 500 },
+    )
   }
 }
+

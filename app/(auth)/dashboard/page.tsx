@@ -19,7 +19,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!isSignedIn) {
-      router.push("/"); // Redirect if not signed in
+      // router.push("/"); // Redirect if not signed in
     } else {
       fetchUserData();
       fetchRecommendations();

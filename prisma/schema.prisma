@@ -23,14 +23,15 @@ model Playlist {
   id        String        @id @default(uuid())
   userId    String
   name      String
-  tracks    Json
+  link      String?       // Add playlist link
+  tracks    Json          // Still store tracks for local playlists
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Like {
   id        String        @id @default(uuid())
   userId    String
-  trackId   String
+  track     Json          // Now required
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 

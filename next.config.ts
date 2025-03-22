@@ -2,15 +2,45 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  // reactStrictMode: false,
+  reactStrictMode: false,
   images: {
     domains: [
-      "i.ytimg.com", // YouTube thumbnails
-      "i.scdn.co",   // Spotify images
-      "yt3.ggpht.com",
-      "image-cdn-ak.spotifycdn.com",
       "via.placeholder.com",
-      "image-cdn-fa.spotifycdn.com"
+      "placehold.com",
+      "placehold.co"
+    ],
+    remotePatterns: [
+      // JioSaavn
+      {
+        protocol: 'https',
+        hostname: '**.saavncdn.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.jiosaavn.com',
+      },
+      // Spotify
+      {
+        protocol: 'https',
+        hostname: '**.scdn.co',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.spotifycdn.com',
+      },
+      // YouTube
+      {
+        protocol: 'https',
+        hostname: '**.ytimg.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.youtube.com',
+      },
+      {
+        protocol: "https",
+        hostname: "**.ggpht.com",
+      },
     ],
   },
 };

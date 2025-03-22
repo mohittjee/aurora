@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (!url && source === "youtube_music") {
-      const proxyResponse = await axios.get(`https://music-player-proxy.onrender.com/youtube?query=${encodeURIComponent(trackId)}&limit=1`);
+      const proxyResponse = await axios.get(`https://music-player-proxy-production.up.railway.app/youtube?query=${encodeURIComponent(trackId)}&limit=1`);
       url = proxyResponse.data.videoId ? `https://www.youtube.com/watch?v=${proxyResponse.data.videoId}` : "";
     }
 
