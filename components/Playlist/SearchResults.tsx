@@ -14,6 +14,7 @@ import { useUser } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { AuthDialog } from "@/components/ui/auth-dialog"
+import { TooltipComp } from "../Tooltip"
 
 interface SearchResultsProps {
   loadMore: (query: string) => void
@@ -94,6 +95,8 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [pendingLikeTrack, setPendingLikeTrack] = useState<MusicSnippet | null>(null)
   const [localSearchStage, setLocalSearchStage] = useState<string | null>(null)
+
+  console.log("Search Results:", playlistMetadata)
 
   // Track index map to preserve original positions
   const trackIndexMapRef = useRef<Map<string, number>>(new Map())
@@ -320,7 +323,7 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
     setShowAuthDialog(false)
 
     if (isSignedIn && pendingLikeTrack) {
-      handleLike(pendingLikeTrack, { stopPropagation: () => {} } as React.MouseEvent)
+      handleLike(pendingLikeTrack, { stopPropagation: () => { } } as React.MouseEvent)
       setPendingLikeTrack(null)
     }
   }
@@ -429,50 +432,60 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
   if (searchResults.length === 0) return null
 
   return (
-    <div className="p-4 max-w-3xl mx-auto">
+    // <div className="p-4 max-w-3xl bg-gradient-to-br from-slate-800/80 to-slate-900/80 border rounded-xl border-slate-700/50 mx-auto">
+    <div id="scrollableDiv" className={`max-w-3xl h-[50vh] overflow-y-scroll bg-slate-900/60 backdrop-blur-sm rounded-lg border  border-cyan-500/50 relative p-4 mx-auto pointer-events-auto`}>
       {playlistMetadata ? (
-        <div className="mb-6 pb-4 border-b flex items-start gap-4">
-          <Image
-            src={playlistMetadata.thumbnail || "/placeholder.svg?height=128&width=128"}
-            alt="Playlist Cover"
-            width={128}
-            height={128}
-            className="rounded object-cover"
-          />
-          <div className="flex-1">
-            <h2 className="text-2xl font-semibold">{playlistMetadata.title}</h2>
-            <div className="flex items-center gap-2 mt-1">
-              <Image
-                src={playlistMetadata.creatorThumbnail || "/placeholder.svg?height=24&width=24"}
-                alt="Creator Logo"
-                width={24}
-                height={24}
-                className="rounded-full"
-              />
-              <p className="text-sm text-gray-600">{playlistMetadata.creator}</p>
-            </div>
-            <p className="text-sm text-gray-500 mt-1">{totalTracks} songs</p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={handleSavePlaylist}>
-                {savedPlaylists.includes(playlistMetadata.title) ? (
-                  <Check className="h-4 w-4 text-green-500" />
-                ) : (
-                  <Save className="h-4 w-4 text-gray-500" />
-                )}
-                {savedPlaylists.includes(playlistMetadata.title) ? "Saved" : "Save Playlist"}
-              </Button>
-              <Button variant="default" size="sm" className="flex items-center gap-2" onClick={handlePlayAll}>
-                <Play className="h-4 w-4" />
-                Play All
-              </Button>
-              {playlistMetadata.link && (
-                <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={handleSupportArtist}>
-                  <ExternalLink className="h-4 w-4" />
-                  Support Artist
+        <div className=" border-cyan-500/50 flex flex-col items-start">
+          <div className="flex gap-4">
+
+            <Image
+              src={playlistMetadata.thumbnail || "/placeholder.svg?height=128&width=128"}
+              alt="Playlist Cover"
+              width={132}
+              height={132}
+              className="rounded object-cover aspect-square"
+            />
+            <div className="flex-1">
+              <h2 className="text-2xl font-semibold">{playlistMetadata.title}</h2>
+              <div className="flex items-center gap-2 mt-1">
+                <Image
+                  src={playlistMetadata.creatorThumbnail || "/placeholder.svg?height=24&width=24"}
+                  alt="Creator Logo"
+                  width={24}
+                  height={24}
+                  className="rounded-full object-cover border border-cyan-500/50"
+                />
+                <div className="flex items-center gap-1">
+                  <p className="text-sm text-accent-foreground/50">{playlistMetadata.creator}</p>
+                  {playlistMetadata.link && (
+                    <TooltipComp tooltipText="Support Artist">
+                    <Button variant="ghost" size="sm" className="flex p-2 items-center gap-2 rounded-full hover:bg-blue-600/40" onClick={handleSupportArtist}>
+                      <ExternalLink className="h-4 w-4 text-blue-400" />
+                      {/* Support Artist */}
+                    </Button>
+                    </TooltipComp>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm text-accent-foreground/50 mt-1">{totalTracks} songs</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={handleSavePlaylist}>
+                  {savedPlaylists.includes(playlistMetadata.title) ? (
+                    <Check className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Save className="h-4 w-4 text-gray-500" />
+                  )}
+                  {savedPlaylists.includes(playlistMetadata.title) ? "Saved" : "Save Playlist"}
                 </Button>
-              )}
+                <Button variant="default" size="sm" className="flex items-center gap-2" onClick={handlePlayAll}>
+                  <Play className="h-4 w-4" />
+                  Play All
+                </Button>
+              </div>
             </div>
           </div>
+
+          <div className="h-[1px] w-full my-4 bg-gradient-to-r from-transparent via-cyan-500/80 to-transparent" />
         </div>
       ) : (
         <p className="text-sm text-gray-500 mb-4">Search Results</p>
@@ -491,6 +504,7 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
         hasMore={hasMore}
         loader={<Loader2 className="h-6 w-6 animate-spin mx-auto my-4" />}
         endMessage={<p className="text-center text-gray-500 my-4">No more tracks to load</p>}
+        scrollableTarget="scrollableDiv"
       >
         <div className="space-y-2">
           {searchResults.map((item, index) => {
@@ -514,9 +528,8 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
             return (
               <Card
                 key={uniqueId}
-                className={`cursor-pointer hover:bg-gray-100 flex items-center justify-between transition-colors ${
-                  isCurrentlyPlaying ? "bg-blue-50 border-blue-300" : ""
-                }`}
+                className={`cursor-pointer  flex items-center justify-between transition-colors ${isCurrentlyPlaying ? "bg-blue-50 border-blue-300" : ""
+                  }`}
                 onClick={() => handleSelect(item, index)}
               >
                 <CardContent className="p-2 flex items-center gap-2 flex-1">
@@ -564,6 +577,7 @@ export default function SearchResults({ loadMore, initialQuery }: SearchResultsP
         actionType={playlistMetadata ? "save" : "like"}
         onComplete={handleAuthComplete}
       />
+      {/* <div className="absolute -bottom-0 -right-0 h-full w-full bg-gradient-to-br opacity-40 blur-xl from-cyan-500 to-blue-500"/> */}
     </div>
   )
 }

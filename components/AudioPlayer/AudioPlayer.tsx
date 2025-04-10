@@ -275,7 +275,7 @@ export default function AudioPlayer() {
 
   return (
     <>
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-100 border-t p-4 flex items-center gap-4 shadow-lg">
+      <div className="fixed bottom-0 left-0 right-0 border-t p-4 flex bg-gradient-to-tr from-slate-800 via-black to-slate-800 z-10 items-center gap-4 shadow-lg">
         <Image
           src={thumbnailUrl || "/placeholder.svg?height=48&width=48"}
           alt="Cover"
