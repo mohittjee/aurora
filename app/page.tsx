@@ -67,17 +67,28 @@ export default function Home() {
               className="flex"
             >
               <ul ref={logoListRef} className="flex pointer-events-auto items-center justify-start [&_li]:mx-4 [&_img]:max-w-none flex-shrink-0">
-                {extendedLogos.map((logo, index) => (
-                  <li key={`${logo.id}-${index}`} className="flex items-center justify-center">
-                    <img
-                      src={hoveredLogo === `${logo.id}-${index}` ? logo.colored : logo.negative}
-                      alt={logo.alt}
-                      className="aspect-square h-10 transition-all duration-300 hover:scale-110"
+                {extendedLogos.map((logo, index) => {
+                  const isHovered = hoveredLogo === `${logo.id}-${index}`;
+                  const imgSrc = isHovered ? logo.colored : logo.negative;
+
+                  return (
+                    <a
+                      key={`${logo.id}-${index}`}
+                      href={logo.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       onMouseEnter={() => setHoveredLogo(`${logo.id}-${index}`)}
                       onMouseLeave={() => setHoveredLogo(null)}
-                    />
-                  </li>
-                ))}
+                    >
+                      <img
+                        src={imgSrc}
+                        alt={logo.alt}
+                        style={{ width: 40, height: 40, margin: '0 10px' }}
+                      />
+                    </a>
+                  );
+                })}
+
               </ul>
             </motion.div>
           </div>
