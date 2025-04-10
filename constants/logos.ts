@@ -15,7 +15,7 @@ export const logos = [
   },
   {
     id: 'ytmusic',
-    negative: '/social-icons/youtubeMusicNegative.svg',
+    negative: '/social-icons/youtubeMusicnegative.svg',
     colored: '/social-icons/youtubeMusicOriginal.svg',
     alt: 'YouTube Music',
     url: 'https://music.youtube.com'
