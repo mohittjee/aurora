@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
         title: metadata.name,
         thumbnail: metadata.images[0]?.url || "https://placehold.co/120",
         creator: metadata.owner.display_name,
-        creatorThumbnail: metadata.owner.images?.[0]?.url || "https://placehold.co/32",
+        creatorThumbnail: metadata.owner.images?.[0]?.url || "./user.svg",
         link: query, // Store the original link
       }
 

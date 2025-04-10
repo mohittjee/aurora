@@ -1,740 +1,88 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { useAudioStore } from "@/store/audioStore"
-import SearchBar from "@/components/SearchBar"
-import AudioPlayer from "@/components/AudioPlayer/AudioPlayer"
-import SearchResults from "@/components/Playlist/SearchResults"
-import SongQueue from "@/components/Playlist/SongQueue"
-import AuthButton from "@/components/AuthButton"
-import axios from "axios"
-import { useUser } from "@clerk/nextjs"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { MusicSnippet } from "@/types/music"
-import Image from "next/image"
-import { PlayCircle, Loader2, Play } from "lucide-react"
-import { toast } from "sonner"
-import { Skeleton } from "@/components/ui/skeleton"
-import { AuthDialog } from "@/components/ui/auth-dialog"
-import { Button } from "@/components/ui/button"
-import InfiniteScroll from "react-infinite-scroll-component"
+import { useState, useEffect, useRef } from "react"
+import SearchButton from "@/components/search-button"
+import { motion } from 'framer-motion';
+import { logos } from "@/constants";
 
 export default function Home() {
-  const { isSignedIn } = useUser()
-  const {
-    setSearchResults,
-    appendSearchResults,
-    setLoading,
-    setQueue,
-    setPlaylistMetadata,
-    reset,
-    setError,
-    offset,
-    setOffset,
-    setHasMore,
-    setTotalTracks,
-    setCurrentTrack,
-    setPlaying,
-    currentTrack,
-    loading,
-    setSearchStage,
-  } = useAudioStore()
+  const [hoveredLogo, setHoveredLogo] = useState<string | null>(null);
+  const [logoListWidth, setLogoListWidth] = useState(0);
 
-  const [initialQuery, setInitialQuery] = useState<string>("")
-  const [uploadedSongs, setUploadedSongs] = useState<MusicSnippet[]>([])
-  const [likedSongs, setLikedSongs] = useState<MusicSnippet[]>([])
-  const [savedPlaylists, setSavedPlaylists] = useState<
-    { id: string; name: string; link?: string; tracks: { tracks: MusicSnippet[] } }[]
-  >([])
-  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null)
-  const [selectedPlaylistTracks, setSelectedPlaylistTracks] = useState<MusicSnippet[]>([])
-  const [activeTab, setActiveTab] = useState("search")
-  const searchInputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const logoListRef = useRef<HTMLUListElement>(null);
 
-  const [loadingUploads, setLoadingUploads] = useState(false)
-  const [loadingLikes, setLoadingLikes] = useState(false)
-  const [loadingPlaylists, setLoadingPlaylists] = useState(false)
-  const [loadingPlaylistTracks, setLoadingPlaylistTracks] = useState(false)
-
-  const [searchStageLocal, setSearchStageLocal] = useState<string | null>(null)
-  const [showAuthDialog, setShowAuthDialog] = useState(false)
-  const [pendingAction, setPendingAction] = useState<{ type: string; data?: any } | null>(null)
-  const [selectedPlaylistHasMore, setSelectedPlaylistHasMore] = useState(false)
-  const [selectedPlaylistOffset, setSelectedPlaylistOffset] = useState(0)
-  const [selectedPlaylistTotal, setSelectedPlaylistTotal] = useState(0)
-
-  const fetchSearchResults = async (query: string, isLoadMore = false) => {
-    setLoading(true)
-    if (!isLoadMore) {
-      reset()
-      setInitialQuery(query)
-      setActiveTab("search")
-      setSearchStage("Initializing search...")
-    } else {
-      setSearchStage("Loading more results...")
-    }
-
-    try {
-      const response = await axios.get("/api/music", {
-        params: {
-          query,
-          offset: isLoadMore ? offset : 0,
-          limit: 20, // Add a limit parameter
-        },
-      })
-
-      const { items, playlist, total, stage } = response.data
-
-      // Update search stage based on response
-      if (stage) {
-        setSearchStage(formatSearchStage(stage))
-      }
-
-      if (!isLoadMore) {
-        setSearchResults(items || [])
-        setTotalTracks(total || items.length)
-        if (playlist) {
-          setQueue(items || [])
-        }
-      } else {
-        appendSearchResults(items || [])
-      }
-
-      setPlaylistMetadata(playlist || null)
-      setHasMore(items.length > 0 && offset + items.length < total)
-      setOffset(offset + items.length)
-      setError(null)
-
-      // Log pagination info
-      console.log(
-        `Loaded ${items.length} items, total: ${total}, hasMore: ${items.length > 0 && (offset + items.length) < total}`,
-      )
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error || error.message || "Unknown error occurred"
-      setError(`Failed to fetch music data: ${errorMessage}`)
-      toast.error(errorMessage)
-      if (!isLoadMore) setSearchResults([])
-      setPlaylistMetadata(null)
-    } finally {
-      setLoading(false)
-      setSearchStage(null)
-    }
-  }
-
-  const formatSearchStage = (stage: string) => {
-    // Convert snake_case to readable format
-    const formatted = stage.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
-
-    return formatted
-  }
-
-  const fetchPlaylistDetails = async (playlistId: string, link?: string, loadMore = false) => {
-    if (!loadMore) {
-      setLoadingPlaylistTracks(true)
-      setSelectedPlaylistId(playlistId)
-      setSelectedPlaylistOffset(0)
-      setSelectedPlaylistTracks([])
-    }
-
-    try {
-      if (link) {
-        // If we have a link, fetch from original source
-        setSearchStage(loadMore ? "Loading more tracks..." : "Fetching playlist from source...")
-
-        const currentOffset = loadMore ? selectedPlaylistOffset : 0
-
-        const response = await axios.get("/api/music", {
-          params: {
-            query: link,
-            offset: currentOffset,
-            limit: 20,
-          },
-        })
-
-        const { items, playlist, total } = response.data
-
-        if (loadMore) {
-          setSelectedPlaylistTracks((prev) => [...prev, ...(items || [])])
-        } else {
-          setSelectedPlaylistTracks(items || [])
-          setSelectedPlaylistTotal(total || items.length)
-        }
-
-        // Store if there are more tracks to load
-        const hasMoreTracks = items.length > 0 && currentOffset + items.length < total
-        setSelectedPlaylistHasMore(hasMoreTracks)
-        setSelectedPlaylistOffset(currentOffset + items.length)
-      } else {
-        // Otherwise use stored tracks
-        const playlist = savedPlaylists.find((p) => p.id === playlistId)
-        if (playlist) {
-          setSelectedPlaylistTracks(playlist.tracks.tracks || [])
-          setSelectedPlaylistHasMore(false) // No pagination for stored playlists
-        }
-      }
-    } catch (error: any) {
-      toast.error("Failed to fetch playlist details")
-      if (!loadMore) {
-        setSelectedPlaylistTracks([])
-      }
-    } finally {
-      setLoadingPlaylistTracks(false)
-      setSearchStage(null)
-    }
-  }
-
-  const fetchUserData = useCallback(
-    async (tabName?: string) => {
-      if (!isSignedIn) return
-
-      if (!tabName || tabName === "uploads") {
-        setLoadingUploads(true)
-        try {
-          const res = await axios.get("/api/uploads")
-          const uploads = res.data.map((upload: any) => ({
-            videoId: upload.id,
-            title: upload.title,
-            artist: upload.artist,
-            source: "upload",
-            filePath: upload.filePath,
-            thumbnails: { default: { url: "https://placehold.co/120" } },
-          }))
-          setUploadedSongs(uploads)
-        } catch (error) {
-          toast.error("Failed to fetch uploaded songs")
-        } finally {
-          setLoadingUploads(false)
-        }
-      }
-
-      if (!tabName || tabName === "likes") {
-        setLoadingLikes(true)
-        try {
-          const res = await axios.get("/api/likes")
-          setLikedSongs(res.data)
-        } catch (error) {
-          toast.error("Failed to fetch liked songs")
-        } finally {
-          setLoadingLikes(false)
-        }
-      }
-
-      if (!tabName || tabName === "playlists") {
-        setLoadingPlaylists(true)
-        try {
-          const res = await axios.get("/api/playlists")
-          setSavedPlaylists(res.data)
-        } catch (error) {
-          toast.error("Failed to fetch playlists")
-        } finally {
-          setLoadingPlaylists(false)
-        }
-      }
-    },
-    [isSignedIn],
-  )
-
-  // Initial data fetch
+  // Calculate dimensions on mount and on window resize
   useEffect(() => {
-    if (isSignedIn) {
-      fetchUserData()
-    }
-  }, [isSignedIn, fetchUserData])
-
-  // Tab change handler
-  const handleTabChange = (value: string) => {
-    setActiveTab(value)
-
-    // Fetch data based on selected tab
-    if (isSignedIn) {
-      if (value === "uploads") {
-        fetchUserData("uploads")
-      } else if (value === "likes") {
-        fetchUserData("likes")
-      } else if (value === "playlists") {
-        fetchUserData("playlists")
+    const updateWidths = () => {
+      if (logoListRef.current) {
+        setLogoListWidth(logoListRef.current.offsetWidth);
       }
-    }
-  }
+    };
 
-  // Check if a track is currently playing
-  const isPlaying = useCallback(
-    (item: MusicSnippet) => {
-      if (!currentTrack) return false
+    updateWidths();
+    window.addEventListener('resize', updateWidths);
 
-      if (item.source === "upload" && currentTrack.source === "upload") {
-        return item.filePath === currentTrack.filePath
-      }
+    return () => {
+      window.removeEventListener('resize', updateWidths);
+    };
+  }, []);
 
-      return item.videoId === currentTrack.videoId
-    },
-    [currentTrack],
-  )
-
-  const handleTrackSelect = (track: MusicSnippet, tracks: MusicSnippet[]) => {
-    if (!isSignedIn) {
-      setPendingAction({ type: "play", data: { track, tracks } })
-      setShowAuthDialog(true)
-      return
-    }
-
-    setCurrentTrack(track)
-    setQueue(tracks)
-    setPlaying(true)
-  }
-
-  const handlePlayAll = (tracks: MusicSnippet[]) => {
-    if (tracks.length === 0) return
-
-    handleTrackSelect(tracks[0], tracks)
-  }
-
-  const handleAuthComplete = () => {
-    setShowAuthDialog(false)
-
-    if (pendingAction && isSignedIn) {
-      if (pendingAction.type === "play" && pendingAction.data) {
-        const { track, tracks } = pendingAction.data
-        setCurrentTrack(track)
-        setQueue(tracks)
-        setPlaying(true)
-      }
-
-      setPendingAction(null)
-    }
-  }
-
-  const handleUploadComplete = () => {
-    fetchUserData("uploads")
-  }
-
-  if (!isSignedIn) {
-    return (
-      <div className="min-h-screen pb-20">
-        <header className="flex justify-between items-center p-4 bg-white shadow">
-          <h1 className="text-2xl font-semibold">Music Player</h1>
-          <AuthButton />
-        </header>
-        <main className="p-4">
-          <SearchBar
-            onSearch={(query) => fetchSearchResults(query, false)}
-            ref={searchInputRef}
-            onUploadComplete={handleUploadComplete}
-          />
-
-          {searchStageLocal && (
-            <div className="p-4 text-center">
-              <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-              <p className="text-sm text-gray-600">{searchStageLocal}</p>
-            </div>
-          )}
-
-          <SearchResults loadMore={() => fetchSearchResults(initialQuery, true)} initialQuery={initialQuery} />
-          <SongQueue />
-          <AudioPlayer />
-
-          {/* Auth Dialog */}
-          <AuthDialog
-            isOpen={showAuthDialog}
-            onClose={() => {
-              setShowAuthDialog(false)
-              setPendingAction(null)
-            }}
-            title="Authentication Required"
-            description="You need to be logged in to play songs. Would you like to sign in now?"
-            actionType="like"
-            onComplete={handleAuthComplete}
-          />
-        </main>
-      </div>
-    )
-  }
+  // Double the logos to create seamless loop
+  const extendedLogos = [...logos, ...logos, ...logos, ...logos];
 
   return (
-    <div className="min-h-screen pb-20">
-      <header className="flex justify-between items-center p-4 bg-white shadow">
-        <h1 className="text-2xl font-semibold">Music Player</h1>
-        <AuthButton />
-      </header>
-      <main className="p-4">
-        <SearchBar
-          onSearch={(query) => fetchSearchResults(query, false)}
-          ref={searchInputRef}
-          onFocus={() => setActiveTab("search")}
-          onUploadComplete={handleUploadComplete}
-        />
-
-        {searchStageLocal && (
-          <div className="p-4 text-center">
-            <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-            <p className="text-sm text-gray-600">{searchStageLocal}</p>
-          </div>
-        )}
-
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full mt-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="search">Search Results</TabsTrigger>
-            <TabsTrigger value="uploads">Uploaded Songs</TabsTrigger>
-            <TabsTrigger value="likes">Liked Songs</TabsTrigger>
-            <TabsTrigger value="playlists">Saved Playlists</TabsTrigger>
-          </TabsList>
-          <TabsContent value="search">
-            <SearchResults loadMore={() => fetchSearchResults(initialQuery, true)} initialQuery={initialQuery} />
-          </TabsContent>
-          <TabsContent value="uploads">
-            {loadingUploads ? (
-              <TrackListSkeleton />
-            ) : (
-              <TrackList
-                tracks={uploadedSongs}
-                onSelect={(track) => handleTrackSelect(track, uploadedSongs)}
-                onPlayAll={() => handlePlayAll(uploadedSongs)}
-                isPlaying={isPlaying}
-                showPlayAll={uploadedSongs.length > 0}
-              />
-            )}
-          </TabsContent>
-          <TabsContent value="likes">
-            {loadingLikes ? (
-              <TrackListSkeleton />
-            ) : (
-              <TrackList
-                tracks={likedSongs}
-                onSelect={(track) => handleTrackSelect(track, likedSongs)}
-                onPlayAll={() => handlePlayAll(likedSongs)}
-                isPlaying={isPlaying}
-                showPlayAll={likedSongs.length > 0}
-              />
-            )}
-          </TabsContent>
-          <TabsContent value="playlists">
-            {loadingPlaylists ? (
-              <PlaylistSkeleton />
-            ) : (
-              <PlaylistList
-                playlists={savedPlaylists}
-                onSelectPlaylist={fetchPlaylistDetails}
-                selectedPlaylistId={selectedPlaylistId}
-                selectedTracks={selectedPlaylistTracks}
-                onSelectTrack={(track) => handleTrackSelect(track, selectedPlaylistTracks)}
-                onPlayAll={() => handlePlayAll(selectedPlaylistTracks)}
-                isPlaying={isPlaying}
-                isLoading={loadingPlaylistTracks}
-                hasMoreTracks={selectedPlaylistHasMore}
-                loadMoreTracks={() =>
-                  fetchPlaylistDetails(
-                    selectedPlaylistId!,
-                    savedPlaylists.find((p) => p.id === selectedPlaylistId)?.link,
-                    true,
-                  )
-                }
-              />
-            )}
-          </TabsContent>
-        </Tabs>
-        <SongQueue />
-        <AudioPlayer />
-      </main>
-    </div>
-  )
-}
-
-interface TrackListProps {
-  tracks: MusicSnippet[]
-  onSelect: (track: MusicSnippet) => void
-  onPlayAll: () => void
-  isPlaying: (track: MusicSnippet) => boolean
-  showPlayAll?: boolean
-}
-
-function TrackList({ tracks, onSelect, onPlayAll, isPlaying, showPlayAll = false }: TrackListProps) {
-  return (
-    <div className="space-y-2">
-      {showPlayAll && (
-        <div className="flex justify-end mb-4">
-          <Button variant="default" size="sm" className="flex items-center gap-2" onClick={onPlayAll}>
-            <Play className="h-4 w-4" />
-            Play All
-          </Button>
+    <div className="flex flex-col items-center justify-center h-full min-h-[calc(100vh-200px)] pointer-events-none">
+      <div className="max-w-3xl w-full flex flex-col items-center justify-center pointer-events-none">
+        {/* Adding explicit centering for the search button */}
+        <div className="flex-1 flex items-center justify-center w-full pt-10">
+          <SearchButton />
         </div>
-      )}
 
-      {tracks.map((item, index) => {
-        // Create a truly unique key for each item
-        const uniqueId = item.videoId || item.filePath || `${item.title}-${item.artist}-${index}`
+        <div className="fixed bottom-32 flex flex-col items-center gap-2 pointer-events-none">
+          <div className="flex w-full items-center justify-center gap-2">
+            <div className="w-full h-[1px] bg-gradient-to-r from-transparent to-cyan-400 rounded-full" />
+            <div className="whitespace-nowrap font-semibold text-2xl flex items-center">
+              Supported Platforms
+            </div>
+            <div className="w-full h-[1px] bg-gradient-to-l from-transparent to-cyan-400 rounded-full" />
+          </div>
 
-        const isCurrentlyPlaying = isPlaying(item)
-        return (
           <div
-            key={uniqueId}
-            className={`p-2 flex items-center gap-2 cursor-pointer hover:bg-gray-100 rounded ${
-              isCurrentlyPlaying ? "bg-blue-50 border border-blue-300" : ""
-            }`}
-            onClick={() => onSelect(item)}
+            ref={containerRef}
+            className="w-sm p-1 overflow-hidden [mask-image:_linear-gradient(to_right,transparent_0,_black_128px,_black_calc(100%-128px),transparent_100%)]"
           >
-            <span className="text-gray-500 text-sm w-8">
-              {isCurrentlyPlaying ? <PlayCircle className="h-5 w-5 text-blue-500 animate-pulse" /> : index + 1}
-            </span>
-            <Image
-              src={item.thumbnails?.default?.url || "/placeholder.svg?height=48&width=48"}
-              alt={item.title || "Unknown Title"}
-              width={48}
-              height={48}
-              className={`rounded ${isCurrentlyPlaying ? "ring-2 ring-blue-400" : ""}`}
-            />
-            <div>
-              <p className={`text-sm font-medium ${isCurrentlyPlaying ? "text-blue-600" : ""}`}>
-                {item.title || "Unknown Title"}
-              </p>
-              <p className="text-xs text-gray-600">{item.artist || "Unknown Artist"}</p>
-            </div>
-          </div>
-        )
-      })}
-      {tracks.length === 0 && <p className="text-center text-gray-500 py-4">No tracks found</p>}
-    </div>
-  )
-}
-
-function TrackListSkeleton() {
-  return (
-    <div className="space-y-2">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="p-2 flex items-center gap-2">
-          <span className="text-gray-500 text-sm w-8">{index + 1}</span>
-          <Skeleton className="h-12 w-12 rounded" />
-          <div className="flex-1">
-            <Skeleton className="h-4 w-48 mb-2" />
-            <Skeleton className="h-3 w-32" />
+            <motion.div
+              animate={{
+                x: [0, -logoListWidth / 2]
+              }}
+              transition={{
+                x: {
+                  repeat: Infinity,
+                  repeatType: "loop",
+                  duration: 25,
+                  ease: "linear"
+                }
+              }}
+              className="flex"
+            >
+              <ul ref={logoListRef} className="flex pointer-events-auto items-center justify-start [&_li]:mx-4 [&_img]:max-w-none flex-shrink-0">
+                {extendedLogos.map((logo, index) => (
+                  <li key={`${logo.id}-${index}`} className="flex items-center justify-center">
+                    <img
+                      src={hoveredLogo === `${logo.id}-${index}` ? logo.colored : logo.negative}
+                      alt={logo.alt}
+                      className="aspect-square h-10 transition-all duration-300 hover:scale-110"
+                      onMouseEnter={() => setHoveredLogo(`${logo.id}-${index}`)}
+                      onMouseLeave={() => setHoveredLogo(null)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
           </div>
         </div>
-      ))}
-    </div>
-  )
-}
-
-interface PlaylistListProps {
-  playlists: { id: string; name: string; link?: string; tracks: { tracks: MusicSnippet[] } }[]
-  onSelectPlaylist: (id: string, link?: string) => void
-  selectedPlaylistId: string | null
-  selectedTracks: MusicSnippet[]
-  onSelectTrack: (track: MusicSnippet) => void
-  onPlayAll: () => void
-  isPlaying: (track: MusicSnippet) => boolean
-  isLoading: boolean
-  hasMoreTracks: boolean
-  loadMoreTracks: () => void
-}
-
-function PlaylistList({
-  playlists,
-  onSelectPlaylist,
-  selectedPlaylistId,
-  selectedTracks,
-  onSelectTrack,
-  onPlayAll,
-  isPlaying,
-  isLoading,
-  hasMoreTracks,
-  loadMoreTracks,
-}: PlaylistListProps) {
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        {playlists.map((playlist) => {
-          const isSelected = selectedPlaylistId === playlist.id
-          return (
-            <div key={playlist.id} className="space-y-2">
-              <div
-                className={`p-2 cursor-pointer hover:bg-gray-100 rounded ${isSelected ? "bg-blue-50 border border-blue-300" : ""}`}
-                onClick={() => onSelectPlaylist(playlist.id, playlist.link)}
-              >
-                <p className="text-sm font-medium">{playlist.name}</p>
-                {playlist.link && <p className="text-xs text-gray-600">{playlist.link}</p>}
-              </div>
-
-              {isSelected && (
-                <div className="ml-4 border-l-2 border-blue-300 pl-4">
-                  {isLoading && selectedTracks.length === 0 ? (
-                    <div className="py-2">
-                      <Loader2 className="h-5 w-5 animate-spin mx-auto" />
-                      <p className="text-sm text-center text-gray-500 mt-2">Loading playlist tracks...</p>
-                    </div>
-                  ) : (
-                    <>
-                      {selectedTracks.length > 0 && (
-                        <div className="flex justify-end mb-2">
-                          <Button variant="default" size="sm" className="flex items-center gap-2" onClick={onPlayAll}>
-                            <Play className="h-4 w-4" />
-                            Play All
-                          </Button>
-                        </div>
-                      )}
-
-                      <InfiniteScroll
-                        dataLength={selectedTracks.length}
-                        next={loadMoreTracks}
-                        hasMore={hasMoreTracks}
-                        loader={
-                          <div className="text-center py-2">
-                            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                            <p className="text-xs text-gray-500 mt-1">Loading more tracks...</p>
-                          </div>
-                        }
-                        endMessage={
-                          selectedTracks.length > 0 ? (
-                            <p className="text-center text-xs text-gray-500 py-2">No more tracks to load</p>
-                          ) : null
-                        }
-                      >
-                        <div className="space-y-2">
-                          {selectedTracks.map((item, index) => {
-                            // Create a truly unique key for each item
-                            const uniqueId = item.videoId || item.filePath || `${item.title}-${item.artist}-${index}`
-
-                            const isCurrentlyPlaying = isPlaying(item)
-                            return (
-                              <div
-                                key={uniqueId}
-                                className={`p-2 flex items-center gap-2 cursor-pointer hover:bg-gray-100 rounded ${
-                                  isCurrentlyPlaying ? "bg-blue-50 border border-blue-300" : ""
-                                }`}
-                                onClick={() => onSelectTrack(item)}
-                              >
-                                <span className="text-gray-500 text-sm w-8">
-                                  {isCurrentlyPlaying ? (
-                                    <PlayCircle className="h-5 w-5 text-blue-500 animate-pulse" />
-                                  ) : (
-                                    index + 1
-                                  )}
-                                </span>
-                                <Image
-                                  src={item.thumbnails?.default?.url || "/placeholder.svg?height=48&width=48"}
-                                  alt={item.title || "Unknown Title"}
-                                  width={48}
-                                  height={48}
-                                  className={`rounded ${isCurrentlyPlaying ? "ring-2 ring-blue-400" : ""}`}
-                                />
-                                <div>
-                                  <p className={`text-sm font-medium ${isCurrentlyPlaying ? "text-blue-600" : ""}`}>
-                                    {item.title || "Unknown Title"}
-                                  </p>
-                                  <p className="text-xs text-gray-600">{item.artist || "Unknown Artist"}</p>
-                                </div>
-                              </div>
-                            )
-                          })}
-                          {selectedTracks.length === 0 && !isLoading && (
-                            <p className="text-center text-gray-500 py-2">No tracks in this playlist</p>
-                          )}
-                        </div>
-                      </InfiniteScroll>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
-        {playlists.length === 0 && <p className="text-center text-gray-500 py-4">No saved playlists</p>}
       </div>
     </div>
   )
 }
-
-function PlaylistSkeleton() {
-  return (
-    <div className="space-y-4">
-      {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="p-2">
-          <Skeleton className="h-6 w-48 mb-2" />
-          <Skeleton className="h-4 w-64" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-
-
-
-
-
-
-
-// "use client";
-
-// import { useState } from "react";
-// import { useAudioStore } from "@/store/audioStore";
-// import SearchBar from "@/components/SearchBar";
-// import AudioPlayer from "@/components/AudioPlayer/AudioPlayer";
-// import SearchResults from "@/components/Playlist/SearchResults";
-// import SongQueue from "@/components/Playlist/SongQueue";
-// import AuthButton from "@/components/AuthButton";
-// import axios from "axios";
-
-// export default function Home() {
-//   const {
-//     setSearchResults,
-//     appendSearchResults,
-//     setLoading,
-//     setQueue,
-//     setPlaylistMetadata,
-//     reset,
-//     setError,
-//     offset,
-//     setOffset,
-//     setHasMore,
-//     setTotalTracks,
-//   } = useAudioStore();
-//   const [initialQuery, setInitialQuery] = useState<string>("");
-
-//   const fetchSearchResults = async (query: string, isLoadMore = false) => {
-//     setLoading(true);
-//     if (!isLoadMore) {
-//       reset();
-//       setInitialQuery(query);
-//     }
-
-//     try {
-//       const response = await axios.get("/api/music", { params: { query, offset: isLoadMore ? offset : 0 } });
-//       const { items, playlist, total } = response.data;
-
-//       if (!isLoadMore) {
-//         setSearchResults(items || []);
-//         setTotalTracks(total || items.length);
-//       } else {
-//         appendSearchResults(items || []);
-//       }
-
-//       setPlaylistMetadata(playlist || null);
-//       if (playlist && !isLoadMore) setQueue(items || []);
-//       setHasMore(items.length > 0 && (offset + items.length) < total);
-//       setOffset(offset + items.length);
-//       setError(null);
-//     } catch (error: any) {
-//       console.error("Error fetching data:", error);
-//       const errorMessage = error.response?.data?.error || error.message || "Unknown error occurred";
-//       setError(`Failed to fetch music data: ${errorMessage}`);
-//       if (!isLoadMore) setSearchResults([]);
-//       setPlaylistMetadata(null);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   return (
-//     <div className="min-h-screen pb-20">
-//       <header className="flex justify-between items-center p-4 bg-white shadow">
-//         <h1 className="text-2xl font-semibold">Music Player</h1>
-//         <AuthButton />
-//       </header>
-//       <main className="p-4">
-//         <SearchBar onSearch={(query) => fetchSearchResults(query, false)} />
-//         <SearchResults loadMore={() => fetchSearchResults(initialQuery, true)} initialQuery={initialQuery} />
-//         <SongQueue />
-//         <AudioPlayer />
-//       </main>
-//     </div>
-//   );
-// }
