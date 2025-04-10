@@ -8,15 +8,15 @@ export const logos = [
   },
   {
     id: 'spotify',
-    negative: '/social-icons/spotifyNegative.svg',
-    colored: '/social-icons/spotifyOriginal.svg',
+    negative: '/social-icons/SpotifyNegative.svg',
+    colored: '/social-icons/SpotifyOriginal.svg',
     alt: 'Spotify',
     url: 'https://www.spotify.com'
   },
   {
     id: 'ytmusic',
-    negative: '/social-icons/youtubemusicNegative.svg',
-    colored: '/social-icons/youtubemusicOriginal.svg',
+    negative: '/social-icons/youtubeMusicNegative.svg',
+    colored: '/social-icons/youtubeMusicOriginal.svg',
     alt: 'YouTube Music',
     url: 'https://music.youtube.com'
   },
